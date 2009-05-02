@@ -31,7 +31,7 @@ an important feature to note is that when_called may be a class to instantiate,
 as well as an object, specifying a method to call, so view the RDoc for more information.
 
    require 'rubygems'
-   require 'commander'
+   require 'commander/import'
 
    # :name is optional, otherwise uses the basename of this executable
    program :name, 'Foo Bar'
@@ -92,9 +92,6 @@ are some quick examples for how to utilize highline in your command(s):
    # Asks for a list of strings, converts to array
    ask("Fav colors?", Array)
 
-   # Choose from an array of elements
-   choice = choose("Favorite language?", :ruby, :perl, :js)
-
 == HighLine & Interaction Additions
 
 In addition to highline's fantastic choice of methods we will continue to
@@ -147,6 +144,9 @@ simplify common tasks using the following methods:
 
   # Display an 'error' status notification
   notify_error "Gem #{name} failed"
+
+  # Choose from an array of elements
+  choice = choose("Favorite language?", :ruby, :perl, :js)
 
 == Commander Goodies
 
@@ -255,6 +255,10 @@ as TerminalCompact. To utilize a different formatter simply use :help_formatter 
 
   program :help_formatter, Commander::HelpFormatter::TerminalCompact
 
+Or utilize the help formatter aliases:
+
+  program :help_formatter, :compact
+
 This abstraction could be utilized to generate HTML documentation for your executable.
 
 == Tips
@@ -289,7 +293,7 @@ Feel free to fork and request a pull, or submit a ticket
 http://visionmedia.lighthouseapp.com/projects/27643-commander
 
 == Known Issues
-  
+ 
 * ask_editor has been tested with TextMate only
 
 == License

@@ -1,5 +1,4 @@
 
-
 module Commander
   
   ##
@@ -7,7 +6,7 @@ module Commander
   #
   # Commander's user interaction module mixes in common
   # methods which extend HighLine's functionality such 
-  # as a +password+ method rather than calling +ask+ directly.
+  # as a #password method rather than calling #ask directly.
   
   module UI
     
@@ -25,13 +24,21 @@ module Commander
     
     ##
     # Ask the user for a password. Specify a custom
-    # +message+ other than 'Password: ' or override the 
-    # default +mask+ of '*'.
+    # _message_ other than 'Password: ' or override the 
+    # default _mask_ of '*'.
     
     def password message = 'Password: ', mask = '*'
       pass = ask(message) { |q| q.echo = mask }
       pass = password message, mask if pass.empty?
       pass
+    end
+    
+    ##
+    # Choose from a set array of _choices_.
+    
+    def choose message, *choices
+      say message
+      super *choices
     end
     
     ##
@@ -48,10 +55,10 @@ module Commander
     end
     
     ##
-    # Prompt +editor+ for input. Optionally supply initial
-    # +input+ which is written to the editor.
+    # Prompt _editor_ for input. Optionally supply initial
+    # _input_ which is written to the editor.
     #
-    # The +editor+ defaults to the EDITOR environment variable
+    # The _editor_ defaults to the EDITOR environment variable
     # when present, or 'mate' for TextMate. 
     #
     # === Examples
@@ -105,6 +112,13 @@ module Commander
     
     def self.replace_tokens(str, hash)
       hash.inject(str.dup) { |str, (key, value)| str.gsub /:#{key}/, value.to_s }
+    end
+    
+    ##
+    # Substitute _hash_'s keys with their associated values in _str_.
+    
+    def self.replace_tokens str, hash
+      hash.inject(str.dup) { |str, (key, value)| str.gsub ":#{key}", value.to_s }
     end
     
     ##
@@ -240,9 +254,9 @@ module Commander
         unless finished?
           erase_line
           if completed?
-            $terminal.say UI::replace_tokens(@complete_message, generate_tokens) if @complete_message.is_a? String
+            $terminal.say UI.replace_tokens(@complete_message, generate_tokens) if @complete_message.is_a? String
           else
-            $terminal.say UI::replace_tokens(@format.tokenize, generate_tokens) << ' '
+            $terminal.say UI.replace_tokens(@format, generate_tokens) << ' '
           end
         end
       end
@@ -282,16 +296,12 @@ module Commander
       ##
       # Output progress while iterating _arr_.
       #
-      # === Example:
+      # === Examples
       #
       #   uris = %w( http://vision-media.ca http://google.com )
       #   ProgressBar.progress uris, :format => "Remaining: :time_remaining" do |uri|
       #     res = open uri
       #   end
-      #
-      # === See:
-      #
-      # * Object#progress
       #
 
       def self.progress arr, options = {}, &block

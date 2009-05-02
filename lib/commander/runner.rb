@@ -20,15 +20,28 @@ module Commander
     # Global options.
     
     attr_reader :options
+    
+    ##
+    # Hash of help formatter aliases.
+    
+    attr_reader :help_formatter_aliases
 
     ##
     # Initialize a new command runner. Optionally
-    # supplying +args+ for mocking, or arbitrary usage.
+    # supplying _args_ for mocking, or arbitrary usage.
     
     def initialize args = ARGV
       @args, @commands, @aliases, @options = args, {}, {}, []
+      @help_formatter_aliases = help_formatter_alias_defaults
       @program = program_defaults
       create_default_commands
+    end
+    
+    ##
+    # Return singleton Runner instance.
+    
+    def self.instance
+      @singleton ||= new
     end
     
     ##
@@ -83,7 +96,7 @@ module Commander
     ##
     # Assign program information.
     #
-    # === Examples:
+    # === Examples
     #    
     #   # Set data
     #   program :name, 'Commander'
@@ -92,11 +105,13 @@ module Commander
     #   program :help, 'Copyright', '2008 TJ Holowaychuk'
     #   program :help, 'Anything', 'You want'
     #   program :int_message 'Bye bye!'
+    #   program :help_formatter, :compact
+    #   program :help_formatter, Commander::HelpFormatter::TerminalCompact
     #   
     #   # Get data
     #   program :name # => 'Commander'
     #
-    # === Keys:
+    # === Keys
     #
     #   :version         (required) Program version triple, ex: '0.0.1'
     #   :description     (required) Program description
@@ -110,6 +125,8 @@ module Commander
       if key == :help and !args.empty?
         @program[:help] ||= {}
         @program[:help][args.first] = args[1]
+      elsif key == :help_formatter && !args.empty?
+        @program[key] = (@help_formatter_aliases[args.first] || args.first)
       else
         @program[key] = *args unless args.empty?
         @program[key]
@@ -121,7 +138,7 @@ module Commander
     # Otherwise attempts to return the command, raising InvalidCommandError when
     # it does not exist.
     #
-    # === Examples:
+    # === Examples
     #    
     #   command :my_command do |c|
     #     c.when_called do |args|
@@ -150,7 +167,7 @@ module Commander
     end
     
     ##
-    # Alias command +name+ with +alias_name+. Optionally +args+ may be passed
+    # Alias command _name_ with _alias_name_. Optionally _args_ may be passed
     # as if they were being passed straight to the original command via the command-line.
     
     def alias_command alias_name, name, *args
@@ -159,7 +176,7 @@ module Commander
     end
     
     ##
-    # Default command +name+ to be used when no other
+    # Default command _name_ to be used when no other
     # command is found in the arguments.
     
     def default_command name
@@ -174,14 +191,14 @@ module Commander
     end
     
     ##
-    # Check if command +name+ is an alias.
+    # Check if command _name_ is an alias.
     
     def alias? name
       @aliases.include? name.to_s
     end
     
     ##
-    # Check if a command +name+ exists.
+    # Check if a command _name_ exists.
     
     def command_exists? name
       @commands[name.to_s]
@@ -203,7 +220,7 @@ module Commander
     end
     
     ##
-    # Returns array of valid command names found within +args+.
+    # Returns array of valid command names found within _args_.
     
     def valid_command_names_from *args
       arg_string = args.delete_if { |value| value =~ /^-/ }.join ' '
@@ -229,6 +246,13 @@ module Commander
     end
     
     ##
+    # Returns hash of help formatter alias defaults.
+    
+    def help_formatter_alias_defaults
+      return :compact => HelpFormatter::TerminalCompact
+    end
+    
+    ##
     # Returns hash of program defaults.
     
     def program_defaults
@@ -243,9 +267,8 @@ module Commander
     
     def create_default_commands
       command :help do |c|
-        c.syntax = 'command help <sub_command>'
-        c.summary = 'Display help documentation for <sub_command>'
-        c.description = 'Display help documentation for the global or sub commands'
+        c.syntax = 'commander help [command]'
+        c.description = 'Display global or [command] help documentation.'
         c.example 'Display global help', 'command help'
         c.example "Display help for 'foo'", 'command help foo'
         c.when_called do |args, options|
@@ -262,19 +285,19 @@ module Commander
     end
     
     ##
-    # Raises InvalidCommandError when a +command+ is not found.
+    # Raises InvalidCommandError when a _command_ is not found.
     
     def require_valid_command command = active_command
       raise InvalidCommandError, 'invalid command', caller if command.nil?
     end
     
     ##
-    # Removes global +options+ from +args+. This prevents an invalid
+    # Removes global _options_ from _args_. This prevents an invalid
     # option error from occurring when options are parsed
     # again for the sub-command.
     
     def remove_global_options options, args
-      # TODO: refactor with flipflop
+      # TODO: refactor with flipflop, please TJ ! have time to refactor me !
       options.each do |option|
         switches = option[:switches]
         past_switch, arg_removed = false, false
@@ -321,7 +344,7 @@ module Commander
     end
     
     ##
-    # Raises a CommandError when the program any of the +keys+ are not present, or empty.
+    # Raises a CommandError when the program any of the _keys_ are not present, or empty.
         
     def require_program *keys
       keys.each do |key|
@@ -330,7 +353,7 @@ module Commander
     end
     
     ##
-    # Return switches and description separated from the +args+ passed.
+    # Return switches and description separated from the _args_ passed.
 
     def self.separate_switches_from_description *args
       switches = args.find_all { |arg| arg.to_s =~ /^-/ } 
@@ -348,6 +371,7 @@ module Commander
     #   --[no-]feature     # => :feature
     #   --file FILE        # => :file
     #   --list of,things   # => :list
+    #
     
     def self.switch_to_sym switch
       switch.scan(/[\-\]](\w+)/).join('_').to_sym rescue nil
