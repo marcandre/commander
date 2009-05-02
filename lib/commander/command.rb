@@ -6,6 +6,7 @@ module Commander
     
     attr_accessor :name, :examples, :syntax, :description
     attr_accessor :summary, :proxy_options, :options
+    attr_reader   :parent
     
     ##
     # Options struct.
@@ -37,7 +38,8 @@ module Commander
     ##
     # Initialize new command with specified _name_.
     
-    def initialize name
+    def initialize name, parent
+      @parent = parent
       @name, @examples, @when_called = name.to_s, [], []
       @options, @proxy_options = [], []
     end
@@ -203,6 +205,8 @@ module Commander
     def inspect #:nodoc:
       "<Commander::Command:#{name}>"
     end
-    
+
+    extend Forwardable
+    def_delegators :parent, :say, :color    
   end
 end

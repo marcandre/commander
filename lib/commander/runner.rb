@@ -148,7 +148,7 @@ module Commander
     #
     
     def command name, &block
-      yield add_command(Commander::Command.new(name)) if block
+      yield add_command(Commander::Command.new(name, self)) if block
       @commands[name.to_s]
     end
     
@@ -377,9 +377,7 @@ module Commander
       switch.scan(/[\-\]](\w+)/).join('_').to_sym rescue nil
     end
     
-    def say *args #:nodoc: 
-      $terminal.say *args
-    end
-    
+    extend Forwardable
+    def_delegators :$terminal, :say, :color    
   end
 end
