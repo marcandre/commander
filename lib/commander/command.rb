@@ -4,8 +4,8 @@ require 'optparse'
 module Commander
   class Command
     
-    attr_accessor :name, :examples, :syntax, :description
-    attr_accessor :summary, :proxy_options, :options
+    attr_accessor :name, :examples, :syntax, :description, :version
+    attr_accessor :summary, :proxy_options, :options, :default_command
     attr_reader   :parent
     
     ##
@@ -38,12 +38,83 @@ module Commander
     ##
     # Initialize new command with specified _name_.
     
-    def initialize name, parent
+    def initialize parent, name = ''
       @parent = parent
       @name, @examples, @when_called = name.to_s, [], []
       @options, @proxy_options = [], []
+      @commands, @aliases, @help = {}, {}, {}
+    end
+
+    ##
+    # Array of options.
+
+    attr_reader :options
+
+    ##
+    # Hash of commands.
+    
+    attr_reader :commands
+
+    ##
+    # Hash of aliases
+    
+    attr_reader :aliases
+
+    ##
+    # Hashe help entries
+    
+    attr_reader :help
+
+   
+    ##
+    # Creates and yields a command instance when a block is passed.
+    # Otherwise attempts to return the command, raising InvalidCommandError when
+    # it does not exist.
+    #
+    # === Examples
+    #    
+    #   command :my_command do |c|
+    #     c.when_called do |args|
+    #       # Code
+    #     end
+    #   end
+    #
+    
+    def command name, &block
+      yield add_command(Commander::Command.new(self, name)) if block
+      @commands[name.to_s]
+    end
+
+    ##
+    # Alias command _name_ with _alias_name_. Optionally _args_ may be passed
+    # as if they were being passed straight to the original command via the command-line.
+    
+    def alias_command alias_name, name, *args
+      @commands[alias_name.to_s] = command name
+      @aliases[alias_name.to_s] = args
     end
     
+    ##
+    # Add a command object to this runner.
+    
+    def add_command command
+      @commands[command.name] = command
+    end
+    
+    ##
+    # Check if command _name_ is an alias.
+    
+    def alias? name
+      @aliases.include? name.to_s
+    end
+    
+    ##
+    # Check if a command _name_ exists.
+    
+    def command_exists? name
+      @commands[name.to_s]
+    end
+
     ##
     # Add a usage example for this command.
     #

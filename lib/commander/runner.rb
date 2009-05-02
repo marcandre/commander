@@ -10,30 +10,16 @@ module Commander
 
     class CommandError < StandardError; end
     class InvalidCommandError < CommandError; end
-    
-    ##
-    # Array of commands.
-    
-    attr_reader :commands
-    
-    ##
-    # Global options.
-    
-    attr_reader :options
-    
-    ##
-    # Hash of help formatter aliases.
-    
-    attr_reader :help_formatter_aliases
+      
 
     ##
     # Initialize a new command runner. Optionally
     # supplying _args_ for mocking, or arbitrary usage.
     
     def initialize args = ARGV
-      @args, @commands, @aliases, @options = args, {}, {}, []
-      @help_formatter_aliases = help_formatter_alias_defaults
-      @program = program_defaults
+      @main = Command.new(self, File.basename($0))
+      @args = args
+      self.help_formatter = :default
       create_default_commands
     end
     
@@ -50,7 +36,7 @@ module Commander
     def run!
       trace = false
       require_program :version, :description
-      trap('INT') { abort program(:int_message) }
+      trap('INT') { abort(int_message || "\nProcess interrupted") }
       global_option('-h', '--help', 'Display help documentation') { command(:help).run *@args[1..-1]; return }
       global_option('-v', '--version', 'Display version information') { say version; return } 
       global_option('-t', '--trace', 'Display backtrace when an error occurs') { trace = true }
@@ -87,7 +73,7 @@ module Commander
     def run_active_command
       require_valid_command
       if alias? command_name_from_args
-        active_command.run *(@aliases[command_name_from_args.to_s] + args_without_command_name)
+        active_command.run *(aliases[command_name_from_args.to_s] + args_without_command_name)
       else
         active_command.run *args_without_command_name
       end      
@@ -121,87 +107,28 @@ module Commander
     #   :int_message     Message to display when interrupted (CTRL + C)
     #
     
+    HELP_FORMATTER_ALIASES = {
+      :default => HelpFormatter::Terminal,
+      :compact => HelpFormatter::TerminalCompact
+    }.freeze
+    
+    attr_reader :help_formatter
+    def help_formatter=(formatter)
+      @help_formatter = HELP_FORMATTER_ALIASES[formatter] || formatter
+    end
+    
     def program key, *args
-      if key == :help and !args.empty?
-        @program[:help] ||= {}
-        @program[:help][args.first] = args[1]
-      elsif key == :help_formatter && !args.empty?
-        @program[key] = (@help_formatter_aliases[args.first] || args.first)
-      else
-        @program[key] = *args unless args.empty?
-        @program[key]
+      dest = key == :help_formatter ? self : main
+      case args.size
+      when 0
+        dest.send key
+      when 1
+        dest.send(:"#{key}=", *args)
+      when 2
+        dest.send(key).send(:[]=, *args)
       end
-    end
-    
-    ##
-    # Creates and yields a command instance when a block is passed.
-    # Otherwise attempts to return the command, raising InvalidCommandError when
-    # it does not exist.
-    #
-    # === Examples
-    #    
-    #   command :my_command do |c|
-    #     c.when_called do |args|
-    #       # Code
-    #     end
-    #   end
-    #
-    
-    def command name, &block
-      yield add_command(Commander::Command.new(name, self)) if block
-      @commands[name.to_s]
-    end
-    
-    ##
-    # Add a global option; follows the same syntax as Command#option
-    # This would be used for switches such as --version, --trace, etc.
-    
-    def global_option *args, &block
-      switches, description = Runner.separate_switches_from_description *args
-      @options << {
-        :args => args,
-        :proc => block,
-        :switches => switches,
-        :description => description,
-      }
-    end
-    
-    ##
-    # Alias command _name_ with _alias_name_. Optionally _args_ may be passed
-    # as if they were being passed straight to the original command via the command-line.
-    
-    def alias_command alias_name, name, *args
-      @commands[alias_name.to_s] = command name
-      @aliases[alias_name.to_s] = args
-    end
-    
-    ##
-    # Default command _name_ to be used when no other
-    # command is found in the arguments.
-    
-    def default_command name
-      @default_command = name
-    end
-    
-    ##
-    # Add a command object to this runner.
-    
-    def add_command command
-      @commands[command.name] = command
-    end
-    
-    ##
-    # Check if command _name_ is an alias.
-    
-    def alias? name
-      @aliases.include? name.to_s
-    end
-    
-    ##
-    # Check if a command _name_ exists.
-    
-    def command_exists? name
-      @commands[name.to_s]
+    rescue
+      p "Failed to set #{key} with #{args.inspect}; #{dest.send(key).inspect}"
     end
     
     ##
@@ -216,7 +143,7 @@ module Commander
     # Supports multi-word commands, using the largest possible match.
     
     def command_name_from_args
-      @__command_name_from_args ||= (valid_command_names_from(*@args.dup).sort.last || @default_command)
+      @__command_name_from_args ||= (valid_command_names_from(*@args.dup).sort.last || main.default_command)
     end
     
     ##
@@ -224,14 +151,14 @@ module Commander
     
     def valid_command_names_from *args
       arg_string = args.delete_if { |value| value =~ /^-/ }.join ' '
-      commands.keys.find_all { |name| name if /^#{name}/.match arg_string }
+      main.commands.keys.find_all { |n| n if /^#{n}/.match arg_string }
     end
     
     ##
     # Help formatter instance.
     
-    def help_formatter
-      @__help_formatter ||= program(:help_formatter).new self
+    def help_formatter_instance
+      @__help_formatter ||= help_formatter.new self
     end
     
     ##
@@ -243,22 +170,6 @@ module Commander
       @args.dup.delete_if do |arg|
         removed << arg if parts.include?(arg) and not removed.include?(arg)
       end
-    end
-    
-    ##
-    # Returns hash of help formatter alias defaults.
-    
-    def help_formatter_alias_defaults
-      return :compact => HelpFormatter::TerminalCompact
-    end
-    
-    ##
-    # Returns hash of program defaults.
-    
-    def program_defaults
-      return :help_formatter => HelpFormatter::Terminal, 
-             :int_message => "\nProcess interrupted",
-             :name => File.basename($0)
     end
     
     ##
@@ -274,11 +185,11 @@ module Commander
         c.when_called do |args, options|
           enable_paging
           if args.empty?
-            say help_formatter.render 
+            say help_formatter_instance.render 
           else
             command = command args.join(' ')
             require_valid_command command
-            say help_formatter.render_command(command)
+            say help_formatter_instance.render_command(command)
           end
         end
       end
@@ -379,5 +290,17 @@ module Commander
     
     extend Forwardable
     def_delegators :$terminal, :say, :color    
+
+    ##
+    # Add a global option; follows the same syntax as Command#option
+    # This would be used for switches such as --version, --trace, etc.
+    
+    def default_command *args
+      program :default_command, *args
+    end
+    
+    attr_accessor :int_message, :main
+    def_delegator :main, :option, :global_option
+    def_delegators :main, :command, :alias_command, :name, :options, :commands, :alias?, :aliases
   end
 end
